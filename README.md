@@ -84,9 +84,10 @@ result = model.simulate()
 result.individuals["F3_0"]
 ```
 
-```
-# example output: result.individuals["F3_0"]
 
+#### Example output: result.individuals["F3_0"]
+
+```
 SimIndividual(
 	individual_id='F3_0', 
 	time=3, 
