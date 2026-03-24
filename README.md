@@ -19,9 +19,12 @@
   - founder homolog IDs
 - Multiple chromosomes
 - Built-in pedigree visualization
-- Future (top priority): ARG reconstruction
-- Future: different map functions
-- Future: tetraploidy
+
+### In the works:
+
+- Top priority: ARG reconstruction
+- Additional map functions
+- Ploidy variation
 
 ---
 
