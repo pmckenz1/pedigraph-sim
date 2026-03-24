@@ -47,7 +47,7 @@ def draw_pedigree_from_records(
     font_size=8,
     cmap="viridis",
 ):
-"""adapted from tskit recommendation"""
+    """adapted from tskit recommendation"""
     G = build_pedigree_graph(records, arrows_to_parents=arrows_to_parents)
     pos = nx.multipartite_layout(G, subset_key="time", align="vertical")
 

@@ -1,4 +1,3 @@
-from typing import Optional
 import numpy as np
 from .ancestry import Homolog, Segment, Slot
 
@@ -185,10 +184,10 @@ def slot_to_homolog(
     time: int,
 ) -> Homolog:
     return Homolog(
-    homolog_id=homolog_id,
-    chromosome=slot.chromosome,
-    individual_id=individual_id,
-    length=slot.length,
-    time=time,
-    segments=[seg.copy() for seg in slot.segments]
-)
+        homolog_id=homolog_id,
+        chromosome=slot.chromosome,
+        individual_id=individual_id,
+        length=slot.length,
+        time=time,
+        segments=[seg.copy() for seg in slot.segments]
+    )
