@@ -7,7 +7,7 @@ name = "recombigraph"
 version = "0.1.0"
 description = "Pedigree-based recombination simulation with explicit homolog tracking."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.9"
 authors = [
     { name = "Patrick McKenzie" }
 ]
