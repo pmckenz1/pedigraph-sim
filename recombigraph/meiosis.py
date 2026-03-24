@@ -38,8 +38,8 @@ def merge_adjacent_segments(
     if not segments:
         return []
 
+    segments = sorted(segments, key=lambda s: s.left)
     merged = [segments[0].copy()]
-
     for seg in segments[1:]:
         last = merged[-1]
         if (
@@ -64,7 +64,7 @@ def recombine_two_homologs(
     individual_id: Optional[str] = None,
     time: Optional[int] = None,
 ) -> Homolog:
-    """Deterministically recombine two homologs and return a new recombinant Homolog."""
+    """DEPRECATED: Deterministically recombine two homologs and return a new recombinant Homolog."""
     if h0.length != h1.length:
         raise ValueError("homologs should be same length")
     if h0.chromosome != h1.chromosome:
@@ -159,7 +159,6 @@ def simulate_bivalent_meiosis(
     chromatids = make_slots(h0,h1)
     crossover_breakpoints = sample_breakpoints_haldane(h0.length, rng)
     events = [(brkpt, sample_nonsister_pair(rng)) for brkpt in crossover_breakpoints]
-    events = sorted(events, key=lambda x: x[0])
         
     for pos, (i, j) in events:
         sl0, sl1 = crossover_slots(chromatids[i], chromatids[j], pos)
@@ -176,7 +175,8 @@ def make_gamete(
         rng = np.random.default_rng()
 
     chromatids = simulate_bivalent_meiosis(h0, h1, rng)
-    return rng.choice(chromatids)
+    idx = rng.integers(0, len(chromatids))
+    return chromatids[idx]
 
 def slot_to_homolog(
     slot: Slot,
