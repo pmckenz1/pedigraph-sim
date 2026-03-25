@@ -4,7 +4,18 @@ from .ancestry import Segment, Homolog, Slot
 from .pedigree import Pedigree, PedigreeRecord
 from .genome import GenomeSpec, ChromosomeSpec
 from .simulate import PedigreeModel, SimIndividual, SimulationResult
-from .visualize import draw_pedigree_from_records
+from .arg import LocalForest, LocalForestSequence
+from .export import (
+    forest_to_newicks,
+    to_newick_records,
+    to_dataframe,
+    to_tskit,
+)
+
+# i'm using a lazy wrapper here to avoid auto-matplotlib import
+def draw_pedigree_from_records(*args, **kwargs):
+    from .visualize import draw_pedigree_from_records as _draw
+    return _draw(*args, **kwargs)
 
 __version__ = "0.1.0"
 

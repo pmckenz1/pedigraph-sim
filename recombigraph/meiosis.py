@@ -75,7 +75,6 @@ class SlotRecord:
             homolog_id=self.homolog_id,
             chromosome=self.chromosome,
             length=self.length,
-            segments=[seg.copy() for seg in self.segments],
             events=list(self.events),
         )
 

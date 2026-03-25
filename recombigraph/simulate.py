@@ -6,6 +6,7 @@ from .meiosis import make_gamete, slot_to_homolog
 from .pedigree import Pedigree
 from .genome import GenomeSpec
 from .visualize import draw_pedigree_from_records
+from .arg import LocalForest, LocalForestSequence, _local_forests
 
 
 @dataclass
@@ -20,6 +21,48 @@ class SimulationResult:
     individuals: dict[str, SimIndividual]
     pedigree: Pedigree
     genome: GenomeSpec
+
+    def local_forests(self, chromosome: str, sample_homolog_ids) -> LocalForestSequence:
+        sample_homolog_ids = tuple(sample_homolog_ids)
+
+        # validate chromosome exists
+        valid_chromosomes = {chrom.name for chrom in self.genome}
+        if chromosome not in valid_chromosomes:
+            raise ValueError(
+                f"Unknown chromosome {chromosome!r}. "
+                f"Valid chromosomes: {sorted(valid_chromosomes)}"
+            )
+
+        # build lookup
+        homolog_lookup = {}
+        for individual in self.individuals.values():
+            for homologs in individual.homologs_by_chromosome.values():
+                for homolog in homologs:
+                    homolog_lookup[homolog.homolog_id] = homolog
+
+        # validate sample IDs
+        for hid in sample_homolog_ids:
+            if hid not in homolog_lookup:
+                raise ValueError(f"Unknown homolog_id: {hid}")
+            if homolog_lookup[hid].chromosome != chromosome:
+                raise ValueError(
+                    f"Homolog {hid} belongs to chromosome "
+                    f"{homolog_lookup[hid].chromosome!r}, not {chromosome!r}."
+                )
+
+        records = _local_forests(self, chromosome, sample_homolog_ids)
+        forests = tuple(
+            LocalForest(
+                chromosome=chromosome,
+                left=left,
+                right=right,
+                edges=frozenset(edges),
+                sample_homolog_ids=sample_homolog_ids,
+            )
+            for left, right, edges in records
+            if right > left
+        )
+        return LocalForestSequence(chromosome=chromosome, forests=forests)
 
 
 def make_founder_individual(

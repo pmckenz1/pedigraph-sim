@@ -46,9 +46,15 @@ class Pedigree:
     def _validate_parent_references(self):
         names = {rec.name for rec in self.records}
         for rec in self.records:
+            if (rec.parent1 is None) != (rec.parent2 is None):
+                raise ValueError(
+                    f"Individual {rec.name!r} must have either 0 parents or 2 parents, "
+                    "not exactly 1."
+                )
             for parent in (rec.parent1, rec.parent2):
                 if parent is not None and parent not in names:
                     raise ValueError(f"Parent {parent!r} of {rec.name!r} not found in pedigree")
+
 
     def _topological_sort(self) -> list[PedigreeRecord]:
         remaining = {rec.name: rec for rec in self.records}

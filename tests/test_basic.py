@@ -1,18 +1,23 @@
 import recombigraph as rg
 
-def test_simulation_runs():
-    gen_list = [
-        ["P0", "NA", "NA"],
-        ["P1", "NA", "NA"],
-        ["F1", "P0", "P1"],
-    ]
 
+def test_basic_simulation_builds_expected_individuals():
     model = rg.PedigreeModel(
-        pedigree=gen_list,
-        chromosomes={"A": 100.0},
+        pedigree=[
+            ("child", "parent1", "parent2"),
+            ("parent2", None, None),
+            ("parent1", None, None),
+        ],
+        chromosomes={"chr1": 100.0},
         seed=1,
     )
 
     result = model.simulate()
 
-    assert "F1" in result.individuals
+    assert set(result.individuals) == {"parent1", "parent2", "child"}
+    assert result.pedigree.generation_map == {
+        "parent2": 0,
+        "parent1": 0,
+        "child": 1,
+    }
+    assert len(result.individuals["child"].homologs_by_chromosome["chr1"]) == 2

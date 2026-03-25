@@ -20,3 +20,8 @@ dependencies = [
 
 [tool.setuptools]
 packages = ["recombigraph"]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=7",
+]
