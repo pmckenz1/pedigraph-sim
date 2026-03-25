@@ -12,7 +12,7 @@ def get_segments_extent(
     stop_loc: float,
     update_parent_id: bool = True,
 ) -> list[Segment]:
-    """return copies of segments from h overlapping [start_loc, stop_loc)."""
+    """return copies of segments from h overlapping [start_loc, stop_loc)"""
     if start_loc >= stop_loc:
         raise ValueError("start_loc must be less than stop_loc")
 
@@ -29,7 +29,7 @@ def get_segments_extent(
 
 
 def merge_adjacent_segments(segments: list[Segment]) -> list[Segment]:
-    """merge adjacent segments only if both parent and founder ids match."""
+    """merge adjacent segments only if both parent and founder IDs match"""
     if not segments:
         return []
 
@@ -47,6 +47,7 @@ def merge_adjacent_segments(segments: list[Segment]) -> list[Segment]:
             merged.append(seg.copy())
     return merged
 
+
 ####
 # slot-level crossover recording
 ####
@@ -61,17 +62,11 @@ class SlotCrossover:
 class SlotRecord:
     """
     fixed slot used during PedigreeSim-style meiosis
-
-    slot_id: 0,1 for first homolog sisters; 2,3 for second homolog sisters
-    source_slot: original slot identity
-    homolog_id/chromosome/length: copied from source homolog
-    events: crossover positions + connected partner slot
     """
     slot_id: int
     homolog_id: int
     chromosome: str
     length: float
-    segments: list[Segment]
     events: list[SlotCrossover]
 
     def copy(self):
@@ -102,18 +97,17 @@ def make_slots(h0: Homolog, h1: Homolog) -> list[SlotRecord]:
 def sample_nonsister_pair(
     rng: np.random.Generator | None = None,
 ) -> tuple[int, int]:
-    """sample two nonsister chromatids: one from slots 0/1 and one from 2/3"""
+    """sample two nonsister chromatids. one from slots 0/1 and one from 2/3"""
     if rng is None:
         rng = np.random.default_rng()
     return int(rng.integers(0, 2)), int(rng.integers(2, 4))
 
 
 ####
-# PedigreeSim-style recombination distances
+# PedigreeSim-style recombination dists
 ####
 
 def ran_exp(mean: float, rng: np.random.Generator) -> float:
-    """Exponential draw with given mean."""
     return rng.exponential(mean)
 
 
@@ -122,13 +116,6 @@ def dist_to_first_recomb(
     rng: np.random.Generator,
     chiasma_interference: bool = False,
 ) -> float:
-    """
-    PedigreeSim-style distance to first recombination.
-
-    Currently:
-    - no interference: exponential
-    - interference not yet implemented
-    """
     pos = ran_exp(meandist, rng)
     if chiasma_interference:
         raise NotImplementedError("chiasma_interference=True not yet implemented")
@@ -140,13 +127,6 @@ def dist_to_next_recomb(
     rng: np.random.Generator,
     chiasma_interference: bool = False,
 ) -> float:
-    """
-    PedigreeSim-style dist to next recombination
-
-    for now:
-    - no interference: exponential
-    - interference not yet implemented
-    """
     if chiasma_interference:
         raise NotImplementedError("chiasma_interference=True not yet implemented")
     return ran_exp(meandist, rng)
@@ -158,10 +138,9 @@ def dist_to_next_recomb(
 
 def all_chrom_recomb(slots: list[SlotRecord]) -> bool:
     """
-    replicating PedigreeSim's diploid check:
-    for a bivalent, at least one chromatid from each homolog pair involved...
-    since slots 0/1 are homolog 0 sisters and 2/3 are homolog 1 sisters,
-    PedigreeSim effectively checks that one of the first pair has >=1 event
+    diploid PedigreeSim check...
+    for a bivalent, at least one chromatid of the first homolog pair must
+    have a recombination. then the other homolog pair necessarily does too.
     """
     return len(slots[0].events) > 0 or len(slots[1].events) > 0
 
@@ -174,17 +153,14 @@ def do_crossing_over(
     allow_no_recomb: bool = True,
 ) -> list[SlotRecord]:
     """
-    PedigreeSim style doCrossingOver for diploid bivalent
-
-    slots remain fixed. crossover events are recorded onto slot event lists
+    PedigreeSim rewrite of doCrossingOver for a diploid bivalent
     """
     if h0.length != h1.length:
         raise ValueError("homologs should be same length")
     if h0.chromosome != h1.chromosome:
         raise ValueError("homologs should be from the same chromosome")
 
-    # for a bivalent, PedigreeSim uses RECOMBDIST = 0.5 Morgan.
-    # the length is in cM, so 0.5 Morgan = 50 cM
+    # PedigreeSim RECOMBDIST = 50 cM for diploid bivalent
     recomb_dist = 50.0
 
     while True:
@@ -217,57 +193,69 @@ def do_crossing_over(
 # slotsToPatterns
 ####
 
-def slots_to_patterns(slots: list[SlotRecord]) -> list[list[tuple[float, float, int]]]:
+def _find_matching_event_index(
+    events: list[SlotCrossover],
+    pos: float,
+    tol: float = 1e-12,
+) -> int | None:
+    """
+    find the event in `events` occurring exactly at `pos`
+    """
+    for idx, ev in enumerate(events):
+        if abs(ev.pos - pos) < tol:
+            return idx
+    return None
+
+
+def slots_to_patterns(
+    slots: list[SlotRecord],
+) -> list[list[tuple[float, float, int]]]:
     """
     convert recorded slot connections into chromatid patterns
 
-    returns one pattern per starting slot
-    
-    each pattern is a list of (left, right, chromosome_index),
-    where chromosome_index is slot_id // 2. this follows PedigreeSim's
-    collapse from slot number to chromosome number
+    returns one pattern per starting slot.
+    Each pattern is a list of (left, right, chrom_index), where chrom_index
+    is slot_id // 2, matching PedigreeSim's meshing of slot to chromosome
     """
-    patterns = []
-
-    # precompute for convenience
-    slot_events = {slot.slot_id: slot.events for slot in slots}
+    patterns: list[list[tuple[float, float, int]]] = []
     length = slots[0].length
 
-    for start_slot in range(len(slots)):
-        current_slot = start_slot
-        current_pos = 0.0
-        pattern = []
+    # slot_id -> sorted event list
+    slot_events = {slot.slot_id: slot.events for slot in slots}
 
-        # track how far along we are in each slot's event list
-        next_idx = {sid: 0 for sid in slot_events}
-        incoming_pos = None
+    for start_slot in range(len(slots)):
+        pattern: list[tuple[float, float, int]] = []
+
+        current_slot = start_slot
+        current_left = 0.0
+        current_event_idx = 0
 
         while True:
             events = slot_events[current_slot]
-            idx = next_idx[current_slot]
 
-            # if we just entered at a crossover position, skip that exact event
-            if incoming_pos is not None:
-                while idx < len(events) and abs(events[idx].pos - incoming_pos) > 1e-12:
-                    idx += 1
-                if idx < len(events):
-                    idx += 1
-                next_idx[current_slot] = idx
-                incoming_pos = None
-
-            if idx >= len(events):
-                pattern.append((current_pos, length, current_slot // 2))
+            if current_event_idx >= len(events):
+                pattern.append((current_left, length, current_slot // 2))
                 break
 
-            ev = events[idx]
-            pattern.append((current_pos, ev.pos, current_slot // 2))
-            current_pos = ev.pos
+            ev = events[current_event_idx]
 
-            prev_slot = current_slot
-            current_slot = ev.partner_slot
-            incoming_pos = ev.pos
+            # add segment from current slot up to thiss crossover
+            pattern.append((current_left, ev.pos, current_slot // 2))
 
-            next_idx[prev_slot] += 1
+            # jump to partner slot at the same crossover
+            partner_slot = ev.partner_slot
+            partner_events = slot_events[partner_slot]
+            partner_idx = _find_matching_event_index(partner_events, ev.pos)
+
+            if partner_idx is None:
+                raise ValueError(
+                    f"Could not find reciprocal crossover at pos={ev.pos} "
+                    f"between slots {current_slot} and {partner_slot}"
+                )
+
+            current_slot = partner_slot
+            current_left = ev.pos
+            current_event_idx = partner_idx + 1
 
         patterns.append(pattern)
 
@@ -280,11 +268,27 @@ def slots_to_patterns(slots: list[SlotRecord]) -> list[list[tuple[float, float, 
 
 def get_centromere_sort_order(rng: np.random.Generator) -> list[int]:
     """
-    PedigreeSim style bivalent tetrad ordering
+    PedigreeSim rewrite of bivalent tetrad ordering
     """
     if rng.random() < 0.5:
         return [0, 0, 1, 1]
     return [1, 1, 0, 0]
+
+
+def pattern_value_at(
+    pattern: list[tuple[float, float, int]],
+    pos: float,
+    tol: float = 1e-12,
+) -> int:
+    """
+    return the chromosome identity (0/1) carried by the pattern at position pos
+    """
+    for left, right, chrom_idx in pattern:
+        if left <= pos < right:
+            return chrom_idx
+    if abs(pos - pattern[-1][1]) < tol:
+        return pattern[-1][2]
+    raise ValueError(f"Position {pos} not covered by pattern")
 
 
 def fill_gamete_from_pattern(
@@ -292,9 +296,6 @@ def fill_gamete_from_pattern(
     source_homologs: list[Homolog],
     output_slot_id: int,
 ) -> Slot:
-    """
-    apply a pattern of chromosome indices (0/1) back to the original homologs
-    """
     if not pattern:
         raise ValueError("pattern must not be empty")
 
@@ -308,10 +309,7 @@ def fill_gamete_from_pattern(
             get_segments_extent(src, left, right, update_parent_id=True)
         )
 
-    new_segments = merge_adjacent_segments(new_segments)
-
-    # slot_id here is just a temporary tetrad index
-    # homolog_id is assigned later in slot_to_homolog()
+    # previously merged here... but best not to to match pedigreeSim output
     return Slot(
         slot_id=output_slot_id,
         homolog_id=-1,
@@ -326,40 +324,29 @@ def patterns_to_gametes(
     h0: Homolog,
     h1: Homolog,
     rng: np.random.Generator,
+    centromere_pos: float | None = None,
 ) -> list[Slot]:
-    """
-    sort patterns by centromeric chromosome identity and convert to gamete chromatids
-    """
     if len(patterns) != 4:
         raise ValueError("Diploid bivalent should yield 4 patterns")
 
+    if centromere_pos is None:
+        centromere_pos = h0.length / 2.0
+
     centro = get_centromere_sort_order(rng)
 
-    # sort patterns to match centromere order...
-    ordered_patterns = list(patterns)
-    for s in range(len(ordered_patterns) - 1):
-        centromere_chrom = None
-        for left, right, chrom_idx in ordered_patterns[s]:
-            if left <= 0.0 < right or abs(left) < 1e-12:
-                centromere_chrom = chrom_idx
-                break
-        if centromere_chrom is None:
-            centromere_chrom = ordered_patterns[s][0][2]
+    ordered = list(patterns)
 
-        if centromere_chrom != centro[s]:
+    # PedigreeSim-style in-place sorting
+    for s in range(len(ordered) - 1):
+        if pattern_value_at(ordered[s], centromere_pos) != centro[s]:
             t = s + 1
-            while t < len(ordered_patterns):
-                cent_t = ordered_patterns[t][0][2]
-                if cent_t == centro[s]:
-                    break
+            while pattern_value_at(ordered[t], centromere_pos) != centro[s]:
                 t += 1
-            if t == len(ordered_patterns):
-                raise ValueError("Could not reorder patterns by centromere identity")
-            ordered_patterns[s], ordered_patterns[t] = ordered_patterns[t], ordered_patterns[s]
+            ordered[s], ordered[t] = ordered[t], ordered[s]
 
     source_homologs = [h0, h1]
     gametes = [
-        fill_gamete_from_pattern(ordered_patterns[s], source_homologs, output_slot_id=s)
+        fill_gamete_from_pattern(ordered[s], source_homologs, output_slot_id=s)
         for s in range(4)
     ]
     return gametes
@@ -375,10 +362,11 @@ def simulate_bivalent_meiosis(
     rng: np.random.Generator,
     chiasma_interference: bool = False,
     allow_no_recomb: bool = True,
+    centromere_pos: float | None = None,
 ) -> list[Slot]:
     """
-    PedigreeSim-style meiosis.
-    the full thing: doCrossingOver -> slotsToPatterns -> patternsToGametes
+    PedigreeSim-style meiosis:
+    three steps. doCrossingOver -> slotsToPatterns -> patternsToGametes
     """
     slots = do_crossing_over(
         h0,
@@ -388,7 +376,13 @@ def simulate_bivalent_meiosis(
         allow_no_recomb=allow_no_recomb,
     )
     patterns = slots_to_patterns(slots)
-    gametes = patterns_to_gametes(patterns, h0, h1, rng)
+    gametes = patterns_to_gametes(
+        patterns,
+        h0,
+        h1,
+        rng,
+        centromere_pos=centromere_pos,
+    )
     return gametes
 
 
@@ -410,10 +404,10 @@ def make_gamete(
         allow_no_recomb=allow_no_recomb,
     )
 
-    # PedigreeSim treats gamete 0 as already random, but sampling one at random
-    # is fine for now and keeps the existing interface.
-    idx = rng.integers(0, len(chromatids))
-    return chromatids[idx]
+    # matching PedigreeSim behavior: conception takes gamete 0.
+    # this is still a random gamete because patterns_to_gametes randomizes
+    # first-division pole assignment via get_centromere_sort_order()
+    return chromatids[0]
 
 
 def slot_to_homolog(
