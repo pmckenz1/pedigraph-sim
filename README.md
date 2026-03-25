@@ -1,4 +1,5 @@
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
+![Tests](https://github.com/pmckenz1/recombigraph/actions/workflows/tests.yml/badge.svg)
 
 # recombigraph
 
