@@ -29,9 +29,9 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/pmckenz1/recombigraph"
-Repository = "https://github.com/pmckenz1/recombigraph"
-Issues = "https://github.com/pmckenz1/recombigraph/issues"
+Homepage = "https://github.com/pmckenz1/pedigraph-sim"
+Repository = "https://github.com/pmckenz1/pedigraph-sim"
+Issues = "https://github.com/pmckenz1/pedigraph-sim/issues"
 
 [tool.setuptools]
 packages = ["pedigraph_sim"]
