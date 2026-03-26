@@ -118,7 +118,7 @@ result
 result.individuals["F3_0"]
 ```
 
-Example output: result.individuals["F3_0"]
+**Example output:** `result.individuals["F3_0"]`
 
 ```
 SimIndividual(
