@@ -27,6 +27,153 @@ class SimulationResult:
     pedigree: Pedigree
     genome: GenomeSpec
 
+    def __repr__(self) -> str:
+        chromosome_names = [chrom.name for chrom in self.genome]
+        times = sorted({ind.time for ind in self.individuals.values()})
+        final_ids = self.final_generation_ids()
+
+        if times:
+            gen_text = f"{times[0]}..{times[-1]}"
+        else:
+            gen_text = "NA"
+
+        return (
+            f"SimulationResult("
+            f"n_individuals={len(self.individuals)}, "
+            f"generations={gen_text}, "
+            f"chromosomes={chromosome_names}, "
+            f"final_generation_ids={final_ids}"
+            f")"
+        )
+
+    def summary(self) -> str:
+        chromosome_names = [chrom.name for chrom in self.genome]
+        times = sorted({ind.time for ind in self.individuals.values()})
+        n_homologs = sum(
+            len(homologs)
+            for ind in self.individuals.values()
+            for homologs in ind.homologs_by_chromosome.values()
+        )
+        n_segments = sum(
+            len(h.segments)
+            for ind in self.individuals.values()
+            for homologs in ind.homologs_by_chromosome.values()
+            for h in homologs
+        )
+
+        lines = [
+            "SimulationResult summary",
+            f"  individuals           : {len(self.individuals)}",
+            f"  generations           : {times[0]}..{times[-1]}",
+            f"  chromosomes           : {chromosome_names}",
+            f"  final generation ids  : {self.final_generation_ids()}",
+            f"  total homologs        : {n_homologs}",
+            f"  total segments        : {n_segments}",
+        ]
+        return "\n".join(lines)
+
+    def individuals_dataframe(self):
+        import pandas as pd
+
+        rows = []
+        for ind in self.individuals.values():
+            rows.append(
+                {
+                    "individual_id": ind.individual_id,
+                    "time": ind.time,
+                    "n_chromosomes": len(ind.homologs_by_chromosome),
+                    "n_homologs": sum(len(v) for v in ind.homologs_by_chromosome.values()),
+                }
+            )
+        return pd.DataFrame(rows).sort_values(["time", "individual_id"]).reset_index(drop=True)
+
+    def homologs_dataframe(self):
+        import pandas as pd
+
+        rows = []
+        for ind in self.individuals.values():
+            for chrom, homologs in ind.homologs_by_chromosome.items():
+                for h in homologs:
+                    rows.append(
+                        {
+                            "individual_id": ind.individual_id,
+                            "time": ind.time,
+                            "chromosome": chrom,
+                            "homolog_id": h.homolog_id,
+                            "length": h.length,
+                            "n_segments": len(h.segments),
+                        }
+                    )
+        return pd.DataFrame(rows).sort_values(
+            ["time", "individual_id", "chromosome", "homolog_id"]
+        ).reset_index(drop=True)
+
+    def segments_dataframe(self):
+        import pandas as pd
+
+        rows = []
+        for ind in self.individuals.values():
+            for chrom, homologs in ind.homologs_by_chromosome.items():
+                for h in homologs:
+                    for seg in h.segments:
+                        rows.append(
+                            {
+                                "individual_id": ind.individual_id,
+                                "time": ind.time,
+                                "chromosome": chrom,
+                                "homolog_id": h.homolog_id,
+                                "left": seg.left,
+                                "right": seg.right,
+                                "span": seg.right - seg.left,
+                                "parent_homolog_id": seg.parent_homolog_id,
+                                "founder_homolog_id": seg.founder_homolog_id,
+                            }
+                        )
+        return pd.DataFrame(rows).sort_values(
+            ["time", "individual_id", "chromosome", "homolog_id", "left"]
+        ).reset_index(drop=True)
+
+    def final_generation_time(self) -> int:
+        """Return the maximum generation time present in the simulation."""
+        return max(ind.time for ind in self.individuals.values())
+
+    def final_generation_individuals(self) -> list[SimIndividual]:
+        """Return all individuals in the final generation."""
+        t = self.final_generation_time()
+        return [ind for ind in self.individuals.values() if ind.time == t]
+
+    def final_generation_ids(self) -> list[str]:
+        """Return individual_ids for the final generation."""
+        return [ind.individual_id for ind in self.final_generation_individuals()]
+
+    def final_generation_homolog_ids(self, chromosome: str | None = None) -> list[int]:
+        """
+        Return homolog_ids for all individuals in the final generation.
+
+        If chromosome is provided, restrict to that chromosome.
+        """
+        inds = self.final_generation_individuals()
+
+        if chromosome is not None:
+            valid_chromosomes = {chrom.name for chrom in self.genome}
+            if chromosome not in valid_chromosomes:
+                raise ValueError(
+                    f"Unknown chromosome {chromosome!r}. "
+                    f"Valid chromosomes: {sorted(valid_chromosomes)}"
+                )
+
+        out = []
+        for ind in inds:
+            if chromosome is None:
+                for homologs in ind.homologs_by_chromosome.values():
+                    for h in homologs:
+                        out.append(h.homolog_id)
+            else:
+                for h in ind.homologs_by_chromosome[chromosome]:
+                    out.append(h.homolog_id)
+
+        return out
+
     def local_forests(
         self,
         chromosome: str,

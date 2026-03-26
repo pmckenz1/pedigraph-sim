@@ -136,13 +136,20 @@ def to_tskit(result: "SimulationResult", seq: LocalForestSequence) -> Any:
             )
         return individual_row_for_individual_id[individual_id]
 
-    for hid in seq.nodes():
+    node_ids = seq.nodes()
+    max_time = max(float(lookup[hid].time) for hid in node_ids)
+
+    for hid in node_ids:
         h = lookup[hid]
         ind_row = get_individual_row(h.individual_id)
         flags = tskit.NODE_IS_SAMPLE if hid in sample_set else 0
+
+        # recombigraph time runs forward; tskit time runs backward
+        tskit_time = max_time - float(h.time)
+
         node_row = tables.nodes.add_row(
             flags=flags,
-            time=float(h.time),
+            time=tskit_time,
             individual=ind_row,
             metadata={
                 "homolog_id": hid,
