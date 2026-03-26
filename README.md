@@ -26,6 +26,7 @@
 
 - Additional map functions
 - Ploidy variation
+- Performance improvements
 
 ---
 
